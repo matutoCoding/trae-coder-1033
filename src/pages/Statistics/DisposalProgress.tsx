@@ -11,7 +11,8 @@ const DisposalProgress: React.FC = () => {
     cleanupOperations,
     resourceAssignments,
     oilSpreadData,
-    ecologyAssessment,
+    ecologyAssessments,
+    summaryReports,
   } = useStore();
 
   const progressData = React.useMemo(() => {
@@ -24,7 +25,8 @@ const DisposalProgress: React.FC = () => {
     cleanupOperations,
     resourceAssignments,
     oilSpreadData,
-    ecologyAssessment,
+    ecologyAssessments,
+    summaryReports,
   ]);
 
   const getStageColor = (completionRate: number) => {

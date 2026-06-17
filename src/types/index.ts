@@ -8,9 +8,15 @@ export type ResourceType = 'vessel' | 'equipment' | 'personnel' | 'material';
 
 export type ResourceStatus = 'available' | 'assigned' | 'in_use' | 'returned';
 
-export type TimelineCategory = 'event' | 'containment' | 'cleanup' | 'resource' | 'ecology' | 'monitoring';
+export type TimelineCategory = 'event' | 'containment' | 'cleanup' | 'resource' | 'ecology' | 'monitoring' | 'summary';
 
 export type CleanupType = 'skimmer' | 'dispersant' | 'shoreline';
+
+export type ReportStatus = 'draft' | 'submitted' | 'confirmed' | 'archived';
+
+export type TaskCategory = 'containment' | 'vessel' | 'skimmer' | 'dispersant' | 'shoreline';
+
+export type PollutionLevel = 'heavy' | 'medium' | 'light' | 'clean';
 
 export interface TimelineItem {
   id: string;
@@ -25,7 +31,12 @@ export interface TimelineItem {
 export interface EventSummaryReport {
   id: string;
   eventId: string;
+  version: number;
+  status: ReportStatus;
   generatedAt: string;
+  submittedAt?: string;
+  confirmedAt?: string;
+  archivedAt?: string;
   basicInfo: {
     eventName: string;
     location: string;
@@ -57,6 +68,33 @@ export interface EventSummaryReport {
   lessons: string;
   overallProgress: number;
   duration: string;
+}
+
+export interface ShoreSegment {
+  id: string;
+  eventId: string;
+  name: string;
+  length: number;
+  pollutionLevel: PollutionLevel;
+  status: 'pending' | 'in_progress' | 'completed';
+  assignedTeam: string;
+  progress: number;
+  collectedWaste: number;
+}
+
+export interface TaskBoardItem {
+  id: string;
+  category: TaskCategory;
+  title: string;
+  description: string;
+  responsibleUnit: string;
+  targetLocation: string;
+  status: string;
+  startTime: string;
+  deadline?: string;
+  progress: number;
+  isOverdue: boolean;
+  linkPath: string;
 }
 
 export interface OilSpillEvent {

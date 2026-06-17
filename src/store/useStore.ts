@@ -15,8 +15,11 @@ import type {
   EventSummaryReport,
   CleanupType,
   ResourceStatus,
+  ReportStatus,
+  TaskBoardItem,
+  ShoreSegment,
 } from '../types';
-import { oilTypeLabels } from '../types';
+import { oilTypeLabels, operationStatusLabels, resourceStatusLabels } from '../types';
 import {
   mockEvents,
   mockOilSpreadData,
@@ -26,6 +29,7 @@ import {
   mockResourceAssignments,
   mockEcologyAssessment,
   mockDisposalProgress,
+  mockShoreSegments,
 } from '../data/mockData';
 import { getTimeDiff } from '../utils/helpers';
 
@@ -37,7 +41,8 @@ interface AppState {
   containmentOperations: ContainmentOperation[];
   cleanupOperations: CleanupOperation[];
   resourceAssignments: ResourceAssignment[];
-  ecologyAssessment: EcologyAssessment | null;
+  ecologyAssessments: EcologyAssessment[];
+  shoreSegments: ShoreSegment[];
   disposalProgress: DisposalProgress[];
   summaryReports: EventSummaryReport[];
   sidebarCollapsed: boolean;
@@ -53,8 +58,11 @@ interface AppState {
   getEventCleanupOperations: (eventId: string, type?: CleanupType) => CleanupOperation[];
   getEventResourceAssignments: (eventId: string) => ResourceAssignment[];
   getEventDisposalProgress: (eventId: string) => DisposalProgress[];
+  getEventEcologyAssessment: (eventId: string) => EcologyAssessment | undefined;
+  getEventShoreSegments: (eventId: string) => ShoreSegment[];
   generateTimeline: (eventId: string) => TimelineItem[];
   computeDynamicProgress: (eventId: string) => DisposalProgress[];
+  generateTaskBoard: (eventId: string) => TaskBoardItem[];
 
   updateCleanupProgress: (operationId: string, progress: number, collectedVolume?: number) => void;
   updateContainmentStatus: (operationId: string, status: OperationStatus, deployedLength?: number) => void;
@@ -70,10 +78,17 @@ interface AppState {
     operationType?: CleanupType,
     targetLocation?: string
   ) => void;
+  startResourceWork: (resourceId: string) => void;
+  pauseResourceWork: (resourceId: string) => void;
+  completeResourceWork: (resourceId: string) => void;
 
   generateSummaryReport: (eventId: string) => EventSummaryReport;
-  getEventSummaryReport: (eventId: string) => EventSummaryReport | undefined;
-  saveSummaryReport: (report: EventSummaryReport) => void;
+  getEventSummaryReports: (eventId: string) => EventSummaryReport[];
+  getLatestReport: (eventId: string) => EventSummaryReport | undefined;
+  updateReportStatus: (reportId: string, status: ReportStatus) => void;
+
+  updateShoreSegmentProgress: (segmentId: string, progress: number, collectedWaste?: number) => void;
+  updateShoreSegmentStatus: (segmentId: string, status: ShoreSegment['status']) => void;
 }
 
 const genId = (prefix: string) =>
@@ -81,15 +96,10 @@ const genId = (prefix: string) =>
 
 const parseTime = (t: string) => new Date(t).getTime();
 
-const STAGE_DEFS = [
-  { key: 'event', stage: '事件响应', order: 1, milestones: ['事件接报', '核实评估', '启动预案'] },
-  { key: 'monitoring', stage: '监测研判', order: 2, milestones: ['初始监测', '扩散预测', '持续跟踪'] },
-  { key: 'containment', stage: '围控布防', order: 3, milestones: ['方案制定', '围油栏布放', '围控效果评估'] },
-  { key: 'cleanup', stage: '清污作业', order: 4, milestones: ['机械收油', '消油剂喷洒', '岸线清理'] },
-  { key: 'resources', stage: '资源调度', order: 5, milestones: ['队伍集结', '物资调运', '现场保障'] },
-  { key: 'ecology', stage: '生态评估', order: 6, milestones: ['快速评估', '损害调查', '修复方案'] },
-  { key: 'summary', stage: '收尾总结', order: 7, milestones: ['清场验收', '事件总结', '经验归档'] },
-];
+const isOverdue = (startTime: string, progress: number): boolean => {
+  const hoursElapsed = (Date.now() - parseTime(startTime)) / (1000 * 60 * 60);
+  return hoursElapsed > 24 && progress < 50;
+};
 
 export const useStore = create<AppState>()(
   persist(
@@ -101,7 +111,8 @@ export const useStore = create<AppState>()(
       containmentOperations: mockContainmentOperations,
       cleanupOperations: mockCleanupOperations,
       resourceAssignments: mockResourceAssignments,
-      ecologyAssessment: mockEcologyAssessment,
+      ecologyAssessments: [mockEcologyAssessment],
+      shoreSegments: mockShoreSegments,
       disposalProgress: mockDisposalProgress,
       summaryReports: [],
       sidebarCollapsed: false,
@@ -152,6 +163,12 @@ export const useStore = create<AppState>()(
         if (staticProgress.length > 0) return staticProgress;
         return get().computeDynamicProgress(eventId);
       },
+
+      getEventEcologyAssessment: (eventId) =>
+        get().ecologyAssessments.find((e) => e.eventId === eventId),
+
+      getEventShoreSegments: (eventId) =>
+        get().shoreSegments.filter((s) => s.eventId === eventId),
 
       generateTimeline: (eventId) => {
         const items: TimelineItem[] = [];
@@ -248,15 +265,15 @@ export const useStore = create<AppState>()(
               id: `tl-res-${r.id}`,
               time: r.assignedTime,
               title: `资源调度：${r.resourceName}`,
-              description: `${r.quantity} ${r.unit}，位置：${r.currentLocation}，状态：${r.status}`,
+              description: `${r.quantity} ${r.unit}，位置：${r.currentLocation}，状态：${resourceStatusLabels[r.status]}`,
               category: 'resource',
               linkPath: '/resources/vessels',
               status: r.status === 'in_use' ? 'normal' : 'warning',
             });
           });
 
-        const eco = get().ecologyAssessment;
-        if (eco && eco.eventId === eventId) {
+        const eco = get().getEventEcologyAssessment(eventId);
+        if (eco) {
           items.push({
             id: `tl-eco-${eco.id}`,
             time: eco.assessmentTime,
@@ -267,6 +284,25 @@ export const useStore = create<AppState>()(
             status: eco.damageLevel > 7 ? 'critical' : 'warning',
           });
         }
+
+        const reports = get().getEventSummaryReports(eventId);
+        reports.forEach((r) => {
+          const statusLabel: Record<ReportStatus, string> = {
+            draft: '草稿',
+            submitted: '送审中',
+            confirmed: '已确认',
+            archived: '已归档',
+          };
+          items.push({
+            id: `tl-report-${r.id}`,
+            time: r.generatedAt,
+            title: `总结报告 v${r.version}（${statusLabel[r.status]}）`,
+            description: `总体进度 ${r.overallProgress}%，回收率 ${r.recoveryStats.recoveryRate}%`,
+            category: 'summary',
+            linkPath: '/statistics/summary',
+            status: r.status === 'archived' ? 'success' : r.status === 'submitted' ? 'warning' : 'normal',
+          });
+        });
 
         return items.sort((a, b) => parseTime(a.time) - parseTime(b.time));
       },
@@ -281,8 +317,8 @@ export const useStore = create<AppState>()(
         const cleanupOps = state.getEventCleanupOperations(eventId);
         const resources = state.getEventResourceAssignments(eventId);
         const spreadData = state.getEventOilSpreadData(eventId);
-        const eco = state.ecologyAssessment;
-        const ecoMatches = eco && eco.eventId === eventId;
+        const eco = state.getEventEcologyAssessment(eventId);
+        const hasEco = !!eco;
 
         const calc = (ratio: number) => Math.min(100, Math.round(ratio * 100));
 
@@ -386,36 +422,130 @@ export const useStore = create<AppState>()(
           eventId,
           stage: '生态评估',
           stageOrder: 6,
-          completionRate: ecoMatches ? 100 : 0,
-          updateTime: ecoMatches ? eco!.assessmentTime : event.reportTime,
-          remarks: ecoMatches
+          completionRate: hasEco ? 100 : 0,
+          updateTime: hasEco ? eco!.assessmentTime : event.reportTime,
+          remarks: hasEco
             ? `损害等级 ${eco!.damageLevel}/10，预计恢复时间 ${eco!.estimatedRecoveryTime}`
             : '待开展生态评估',
           milestones: [
-            { name: '快速评估', completed: ecoMatches, time: ecoMatches ? eco!.assessmentTime : undefined },
-            { name: '损害调查', completed: ecoMatches },
-            { name: '修复方案', completed: ecoMatches && !!eco!.recoveryPlan },
+            { name: '快速评估', completed: hasEco, time: hasEco ? eco!.assessmentTime : undefined },
+            { name: '损害调查', completed: hasEco },
+            { name: '修复方案', completed: hasEco && !!eco!.recoveryPlan },
           ],
         });
 
         const overall = result.reduce((s, r) => s + r.completionRate, 0) / result.length;
         const isCompleted = event.status === 'completed' || event.status === 'archived';
+        const reports = state.getEventSummaryReports(eventId);
+        const hasArchived = reports.some((r) => r.status === 'archived');
         result.push({
           id: `dp-summary-${eventId}`,
           eventId,
           stage: '收尾总结',
           stageOrder: 7,
-          completionRate: isCompleted ? 100 : overall > 80 ? 50 : 0,
+          completionRate: hasArchived ? 100 : isCompleted ? 80 : overall > 80 ? 50 : 0,
           updateTime: new Date().toLocaleString('zh-CN'),
-          remarks: isCompleted ? '事件已处理完毕，完成总结归档' : overall > 80 ? '进入收尾阶段' : '处置进行中',
+          remarks: hasArchived ? '事件已归档' : isCompleted ? '总结确认中' : overall > 80 ? '进入收尾阶段' : '处置进行中',
           milestones: [
             { name: '清场验收', completed: isCompleted },
-            { name: '事件总结', completed: isCompleted },
-            { name: '经验归档', completed: event.status === 'archived' },
+            { name: '事件总结', completed: reports.length > 0 },
+            { name: '经验归档', completed: hasArchived },
           ],
         });
 
         return result.sort((a, b) => a.stageOrder - b.stageOrder);
+      },
+
+      generateTaskBoard: (eventId) => {
+        const items: TaskBoardItem[] = [];
+        const state = get();
+
+        const containmentOps = state.getEventContainmentOperations(eventId);
+        containmentOps.forEach((op) => {
+          items.push({
+            id: `task-contain-${op.id}`,
+            category: 'containment',
+            title: `围油栏布放 - ${op.boomType}`,
+            description: op.remarks || '围控溢油扩散',
+            responsibleUnit: op.operator,
+            targetLocation: op.deploymentLocation,
+            status: operationStatusLabels[op.status],
+            startTime: op.startTime,
+            progress: op.totalLength > 0 ? Math.round((op.deployedLength / op.totalLength) * 100) : 0,
+            isOverdue: isOverdue(op.startTime, op.totalLength > 0 ? (op.deployedLength / op.totalLength) * 100 : 0),
+            linkPath: '/containment/boom',
+          });
+        });
+
+        const skimmerOps = state.getEventCleanupOperations(eventId, 'skimmer');
+        skimmerOps.forEach((op) => {
+          items.push({
+            id: `task-skim-${op.id}`,
+            category: 'skimmer',
+            title: `撇油器收油 - ${op.equipment}`,
+            description: `目标回收 ${op.targetVolume} 吨`,
+            responsibleUnit: op.operator,
+            targetLocation: op.location,
+            status: operationStatusLabels[op.status],
+            startTime: op.startTime,
+            progress: op.progress,
+            isOverdue: isOverdue(op.startTime, op.progress),
+            linkPath: '/cleanup/skimmer',
+          });
+        });
+
+        const dispersantOps = state.getEventCleanupOperations(eventId, 'dispersant');
+        dispersantOps.forEach((op) => {
+          items.push({
+            id: `task-disp-${op.id}`,
+            category: 'dispersant',
+            title: `消油剂喷洒 - ${op.equipment}`,
+            description: `目标用量 ${op.targetVolume} 吨`,
+            responsibleUnit: op.operator,
+            targetLocation: op.location,
+            status: operationStatusLabels[op.status],
+            startTime: op.startTime,
+            progress: op.progress,
+            isOverdue: isOverdue(op.startTime, op.progress),
+            linkPath: '/cleanup/dispersant',
+          });
+        });
+
+        const vessels = state.getEventResourceAssignments(eventId).filter((r) => r.resourceType === 'vessel');
+        vessels.forEach((v) => {
+          items.push({
+            id: `task-vessel-${v.id}`,
+            category: 'vessel',
+            title: `${v.resourceName}`,
+            description: v.currentTask || '待命',
+            responsibleUnit: v.contact,
+            targetLocation: v.targetLocation || v.currentLocation,
+            status: resourceStatusLabels[v.status],
+            startTime: v.assignedTime,
+            progress: v.status === 'in_use' ? 60 : v.status === 'assigned' ? 30 : v.status === 'available' ? 0 : 100,
+            isOverdue: v.status === 'assigned' && isOverdue(v.assignedTime, 30),
+            linkPath: '/resources/vessels',
+          });
+        });
+
+        const shores = state.getEventShoreSegments(eventId);
+        shores.forEach((s) => {
+          items.push({
+            id: `task-shore-${s.id}`,
+            category: 'shoreline',
+            title: `岸线清理 - ${s.name}`,
+            description: `岸线长度 ${s.length} km，污染程度：${s.pollutionLevel === 'heavy' ? '严重' : s.pollutionLevel === 'medium' ? '中等' : '轻微'}`,
+            responsibleUnit: s.assignedTeam,
+            targetLocation: s.name,
+            status: s.status === 'pending' ? '待处理' : s.status === 'in_progress' ? '进行中' : '已完成',
+            startTime: s.status !== 'pending' ? s.name : new Date().toLocaleString('zh-CN'),
+            progress: s.progress,
+            isOverdue: isOverdue(s.status !== 'pending' ? s.name : new Date().toLocaleString('zh-CN'), s.progress),
+            linkPath: '/cleanup/shoreline',
+          });
+        });
+
+        return items.sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime));
       },
 
       updateCleanupProgress: (operationId, progress, collectedVolume) => set((state) => ({
@@ -485,6 +615,29 @@ export const useStore = create<AppState>()(
           ),
         })),
 
+      startResourceWork: (resourceId) =>
+        set((state) => ({
+          resourceAssignments: state.resourceAssignments.map((r) =>
+            r.id === resourceId ? { ...r, status: 'in_use' as ResourceStatus } : r
+          ),
+        })),
+
+      pauseResourceWork: (resourceId) =>
+        set((state) => ({
+          resourceAssignments: state.resourceAssignments.map((r) =>
+            r.id === resourceId ? { ...r, status: 'assigned' as ResourceStatus } : r
+          ),
+        })),
+
+      completeResourceWork: (resourceId) =>
+        set((state) => ({
+          resourceAssignments: state.resourceAssignments.map((r) =>
+            r.id === resourceId
+              ? { ...r, status: 'available' as ResourceStatus, currentTask: '', operationType: undefined, targetLocation: undefined }
+              : r
+          ),
+        })),
+
       generateSummaryReport: (eventId) => {
         const state = get();
         const event = state.getEventById(eventId);
@@ -492,11 +645,15 @@ export const useStore = create<AppState>()(
           return {} as EventSummaryReport;
         }
 
+        const existingReports = state.getEventSummaryReports(eventId);
+        const nextVersion = existingReports.length > 0
+          ? Math.max(...existingReports.map((r) => r.version)) + 1
+          : 1;
+
         const containmentOps = state.getEventContainmentOperations(eventId);
         const cleanupOps = state.getEventCleanupOperations(eventId);
         const resources = state.getEventResourceAssignments(eventId);
-        const eco = state.ecologyAssessment;
-        const ecoMatches = eco && eco.eventId === eventId;
+        const eco = state.getEventEcologyAssessment(eventId);
 
         const totalCollected = cleanupOps.reduce((s, o) => s + o.collectedVolume, 0);
         const recoveryRate = event.estimatedVolume > 0
@@ -520,7 +677,7 @@ export const useStore = create<AppState>()(
           `先后在 ${containmentOps.length} 处布设围油栏，总长度 ${containmentOps.reduce((s, o) => s + o.totalLength, 0)} 米。`,
           `出动 ${resources.filter((r) => r.resourceType === 'vessel').length} 艘清污船舶，开展机械收油和消油剂喷洒作业。`,
           `累计回收油污 ${totalCollected.toFixed(1)} 吨，总体回收率约 ${recoveryRate}%。`,
-          `已完成生态损害初步评估，损害等级 ${ecoMatches ? eco!.damageLevel : '待评估'}。`,
+          eco ? `已完成生态损害评估，损害等级 ${eco.damageLevel}/10。` : '生态评估待开展。',
         ].join('\n');
 
         const lessons = [
@@ -532,6 +689,8 @@ export const useStore = create<AppState>()(
         const report: EventSummaryReport = {
           id: genId('RPT'),
           eventId,
+          version: nextVersion,
+          status: 'draft',
           generatedAt: new Date().toLocaleString('zh-CN'),
           basicInfo: {
             eventName: event.eventName,
@@ -555,30 +714,59 @@ export const useStore = create<AppState>()(
             byType,
           },
           ecologyImpact: {
-            damageLevel: ecoMatches ? eco!.damageLevel : 0,
-            affectedArea: ecoMatches ? eco!.affectedArea : 0,
-            sensitiveResources: ecoMatches ? eco!.sensitiveResources : [],
-            affectedSpecies: ecoMatches ? eco!.affectedSpecies : [],
-            estimatedRecoveryTime: ecoMatches ? eco!.estimatedRecoveryTime : '待评估',
+            damageLevel: eco ? eco.damageLevel : 0,
+            affectedArea: eco ? eco.affectedArea : 0,
+            sensitiveResources: eco ? eco.sensitiveResources : [],
+            affectedSpecies: eco ? eco.affectedSpecies : [],
+            estimatedRecoveryTime: eco ? eco.estimatedRecoveryTime : '待评估',
           },
           lessons,
           overallProgress,
           duration: getTimeDiff(event.occurrenceTime),
         };
 
+        set((state) => ({
+          summaryReports: [report, ...state.summaryReports],
+        }));
+
         return report;
       },
 
-      getEventSummaryReport: (eventId) => {
-        const reports = get().summaryReports;
-        return reports.find((r) => r.eventId === eventId);
+      getEventSummaryReports: (eventId) =>
+        get().summaryReports.filter((r) => r.eventId === eventId).sort((a, b) => b.version - a.version),
+
+      getLatestReport: (eventId) => {
+        const reports = get().getEventSummaryReports(eventId);
+        return reports.length > 0 ? reports[0] : undefined;
       },
 
-      saveSummaryReport: (report) =>
+      updateReportStatus: (reportId, status) =>
         set((state) => ({
-          summaryReports: state.summaryReports.some((r) => r.id === report.id)
-            ? state.summaryReports.map((r) => (r.id === report.id ? report : r))
-            : [report, ...state.summaryReports],
+          summaryReports: state.summaryReports.map((r) => {
+            if (r.id !== reportId) return r;
+            const now = new Date().toLocaleString('zh-CN');
+            const updated = { ...r, status };
+            if (status === 'submitted') updated.submittedAt = now;
+            if (status === 'confirmed') updated.confirmedAt = now;
+            if (status === 'archived') updated.archivedAt = now;
+            return updated;
+          }),
+        })),
+
+      updateShoreSegmentProgress: (segmentId, progress, collectedWaste) =>
+        set((state) => ({
+          shoreSegments: state.shoreSegments.map((s) =>
+            s.id === segmentId
+              ? { ...s, progress, collectedWaste: collectedWaste ?? s.collectedWaste }
+              : s
+          ),
+        })),
+
+      updateShoreSegmentStatus: (segmentId, status) =>
+        set((state) => ({
+          shoreSegments: state.shoreSegments.map((s) =>
+            s.id === segmentId ? { ...s, status, progress: status === 'completed' ? 100 : s.progress } : s
+          ),
         })),
     }),
     {
@@ -590,6 +778,8 @@ export const useStore = create<AppState>()(
         cleanupOperations: state.cleanupOperations,
         resourceAssignments: state.resourceAssignments,
         summaryReports: state.summaryReports,
+        shoreSegments: state.shoreSegments,
+        ecologyAssessments: state.ecologyAssessments,
         currentEvent: state.currentEvent,
         sidebarCollapsed: state.sidebarCollapsed,
       }),

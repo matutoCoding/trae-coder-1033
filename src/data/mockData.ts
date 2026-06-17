@@ -8,6 +8,7 @@ import type {
   EcologyAssessment,
   DisposalProgress,
   ChartDataPoint,
+  ShoreSegment,
 } from '../types';
 
 export const mockEvents: OilSpillEvent[] = [
@@ -530,3 +531,61 @@ export const mockDamageLevelData: ChartDataPoint[] = [
 ];
 
 export const windDirections = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+
+export const mockShoreSegments: ShoreSegment[] = [
+  {
+    id: 'SS-001',
+    eventId: 'EVT-2026-001',
+    name: 'A段 - 旅游度假区岸线',
+    length: 2.5,
+    pollutionLevel: 'heavy',
+    status: 'pending',
+    assignedTeam: '岸线清理一队',
+    progress: 0,
+    collectedWaste: 0,
+  },
+  {
+    id: 'SS-002',
+    eventId: 'EVT-2026-001',
+    name: 'B段 - 渔业码头岸线',
+    length: 3.2,
+    pollutionLevel: 'medium',
+    status: 'in_progress',
+    assignedTeam: '岸线清理二队',
+    progress: 45,
+    collectedWaste: 5.2,
+  },
+  {
+    id: 'SS-003',
+    eventId: 'EVT-2026-001',
+    name: 'C段 - 自然保护区岸线',
+    length: 4.8,
+    pollutionLevel: 'light',
+    status: 'pending',
+    assignedTeam: '岸线清理三队',
+    progress: 0,
+    collectedWaste: 0,
+  },
+  {
+    id: 'SS-004',
+    eventId: 'EVT-2026-001',
+    name: 'D段 - 工业港岸线',
+    length: 1.8,
+    pollutionLevel: 'heavy',
+    status: 'in_progress',
+    assignedTeam: '岸线清理四队',
+    progress: 70,
+    collectedWaste: 8.5,
+  },
+  {
+    id: 'SS-005',
+    eventId: 'EVT-2026-001',
+    name: 'E段 - 居民区岸线',
+    length: 2.2,
+    pollutionLevel: 'medium',
+    status: 'completed',
+    assignedTeam: '岸线清理一队',
+    progress: 100,
+    collectedWaste: 3.6,
+  },
+];

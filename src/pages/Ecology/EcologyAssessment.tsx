@@ -5,7 +5,9 @@ import { useStore } from '../../store/useStore';
 import { formatDateTime } from '../../utils/helpers';
 
 const EcologyAssessmentPage: React.FC = () => {
-  const { ecologyAssessment, currentEvent } = useStore();
+  const { getEventEcologyAssessment, ecologyAssessments, currentEvent } = useStore();
+
+  const ecologyAssessment = currentEvent ? getEventEcologyAssessment(currentEvent.id) : undefined;
 
   const radarData = [
     { subject: '海洋生物', A: 8, fullMark: 10 },
@@ -32,15 +34,6 @@ const EcologyAssessmentPage: React.FC = () => {
     { step: 5, name: '长期监测评估', status: 'pending', duration: '预计3-5年' },
   ];
 
-  if (!ecologyAssessment) {
-    return (
-      <div className="text-center py-12">
-        <Activity size={48} className="mx-auto text-gray-300 mb-4" />
-        <p className="text-gray-500">暂无生态评估数据</p>
-      </div>
-    );
-  }
-
   const getDamageColor = (level: number) => {
     if (level >= 8) return 'text-alert-red';
     if (level >= 6) return 'text-alert-orange';
@@ -55,6 +48,44 @@ const EcologyAssessmentPage: React.FC = () => {
     return '轻度';
   };
 
+  const handleGenerateReport = () => {
+    alert('生成评估报告功能开发中...');
+  };
+
+  if (!currentEvent) {
+    return (
+      <div className="card text-center py-12">
+        <Activity size={48} className="mx-auto text-gray-300 mb-4" />
+        <p className="text-gray-500">请先选择一个事件</p>
+      </div>
+    );
+  }
+
+  if (!ecologyAssessment) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-ocean-700">生态损害评估</h2>
+            <p className="text-gray-600 mt-1">评估溢油事件对海洋生态环境的影响</p>
+          </div>
+        </div>
+        <div className="card text-center py-16">
+          <Activity size={64} className="mx-auto text-gray-300 mb-6" />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">当前事件暂无生态评估数据</h3>
+          <p className="text-gray-500 mb-6">点击下方按钮生成生态评估报告</p>
+          <button
+            onClick={handleGenerateReport}
+            className="btn-primary flex items-center gap-2 mx-auto"
+          >
+            <FileText size={18} />
+            生成评估报告
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -68,31 +99,29 @@ const EcologyAssessmentPage: React.FC = () => {
         </button>
       </div>
 
-      {currentEvent && (
-        <div className="card bg-gradient-to-r from-ocean-700 to-ocean-600 text-white">
-          <div className="grid grid-cols-4 gap-6">
-            <div>
-              <p className="text-ocean-100 text-sm">事件名称</p>
-              <h3 className="text-xl font-bold">{currentEvent.eventName}</h3>
-            </div>
-            <div>
-              <p className="text-ocean-100 text-sm">影响面积</p>
-              <p className="text-3xl font-bold">{ecologyAssessment.affectedArea} <span className="text-lg">km²</span></p>
-            </div>
-            <div>
-              <p className="text-ocean-100 text-sm">损害等级</p>
-              <p className={`text-3xl font-bold ${getDamageColor(ecologyAssessment.damageLevel)}`}>
-                {ecologyAssessment.damageLevel}/10
-              </p>
-              <p className="text-ocean-100 text-sm">{getDamageLabel(ecologyAssessment.damageLevel)}</p>
-            </div>
-            <div>
-              <p className="text-ocean-100 text-sm">预计恢复时间</p>
-              <p className="text-2xl font-bold">{ecologyAssessment.estimatedRecoveryTime}</p>
-            </div>
+      <div className="card bg-gradient-to-r from-ocean-700 to-ocean-600 text-white">
+        <div className="grid grid-cols-4 gap-6">
+          <div>
+            <p className="text-ocean-100 text-sm">事件名称</p>
+            <h3 className="text-xl font-bold">{currentEvent.eventName}</h3>
+          </div>
+          <div>
+            <p className="text-ocean-100 text-sm">影响面积</p>
+            <p className="text-3xl font-bold">{ecologyAssessment.affectedArea} <span className="text-lg">km²</span></p>
+          </div>
+          <div>
+            <p className="text-ocean-100 text-sm">损害等级</p>
+            <p className={`text-3xl font-bold ${getDamageColor(ecologyAssessment.damageLevel)}`}>
+              {ecologyAssessment.damageLevel}/10
+            </p>
+            <p className="text-ocean-100 text-sm">{getDamageLabel(ecologyAssessment.damageLevel)}</p>
+          </div>
+          <div>
+            <p className="text-ocean-100 text-sm">预计恢复时间</p>
+            <p className="text-2xl font-bold">{ecologyAssessment.estimatedRecoveryTime}</p>
           </div>
         </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-2 gap-6">
         <div className="card">

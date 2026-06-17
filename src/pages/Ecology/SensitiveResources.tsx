@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Shield, MapPin, AlertTriangle, Fish, Bird, Trees, Droplets, ChevronRight, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -10,8 +10,13 @@ const resourceIcons: Record<string, React.ReactNode> = {
 };
 
 const SensitiveResources: React.FC = () => {
-  const { ecologyAssessment, currentEvent } = useStore();
+  const { currentEvent, getEventEcologyAssessment } = useStore();
   const [selectedResource, setSelectedResource] = useState<string | null>(null);
+
+  const ecologyAssessment = useMemo(() => {
+    if (!currentEvent) return undefined;
+    return getEventEcologyAssessment(currentEvent.id);
+  }, [currentEvent, getEventEcologyAssessment]);
 
   const protectionMeasures = [
     {
@@ -107,11 +112,20 @@ const SensitiveResources: React.FC = () => {
     }
   };
 
+  if (!currentEvent) {
+    return (
+      <div className="text-center py-12">
+        <Shield size={48} className="mx-auto text-gray-300 mb-4" />
+        <p className="text-gray-500">请先选择一个事件</p>
+      </div>
+    );
+  }
+
   if (!ecologyAssessment) {
     return (
       <div className="text-center py-12">
         <Shield size={48} className="mx-auto text-gray-300 mb-4" />
-        <p className="text-gray-500">暂无生态评估数据</p>
+        <p className="text-gray-500">当前事件暂无敏感资源保护数据</p>
       </div>
     );
   }

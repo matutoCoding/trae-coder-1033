@@ -25,6 +25,7 @@ export default function App() {
         <Route path="/home" element={<Home />} />
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/task-board" element={<TaskBoard />} />
           <Route path="/events" element={<EventList />} />
           <Route path="/events/register" element={<EventRegister />} />
           <Route path="/events/:id" element={<EventDetail />} />

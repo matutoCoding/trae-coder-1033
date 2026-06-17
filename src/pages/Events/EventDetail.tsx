@@ -10,7 +10,7 @@ import StatCard from '../../components/Cards/StatCard';
 const EventDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getEventById, getEventOilSpreadData, getEventContainmentOperations, getEventCleanupOperations, getEventResourceAssignments, getEventDisposalProgress, ecologyAssessment, setCurrentEvent, generateTimeline } = useStore();
+  const { getEventById, getEventOilSpreadData, getEventContainmentOperations, getEventCleanupOperations, getEventResourceAssignments, getEventDisposalProgress, getEventEcologyAssessment, ecologyAssessments, setCurrentEvent, generateTimeline } = useStore();
 
   const event = id ? getEventById(id) : undefined;
 
@@ -31,6 +31,7 @@ const EventDetail: React.FC = () => {
   const cleanupOps = getEventCleanupOperations(event.id);
   const resources = getEventResourceAssignments(event.id);
   const disposalProgress = getEventDisposalProgress(event.id);
+  const ecologyAssessment = getEventEcologyAssessment(event.id);
   const timeline = generateTimeline(event.id);
 
   const latestSpread = oilSpreadData[oilSpreadData.length - 1];
@@ -241,9 +242,9 @@ const EventDetail: React.FC = () => {
         </div>
       </div>
 
-      {ecologyAssessment && ecologyAssessment.eventId === event.id && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-ocean-700 mb-4">生态评估摘要</h3>
+      <div className="card">
+        <h3 className="text-lg font-semibold text-ocean-700 mb-4">生态评估摘要</h3>
+        {ecologyAssessment ? (
           <div className="grid grid-cols-4 gap-6">
             <div className="p-4 bg-red-50 rounded-lg border border-red-100">
               <p className="text-sm text-gray-500 mb-1">损害等级</p>
@@ -262,8 +263,10 @@ const EventDetail: React.FC = () => {
               <p className="text-lg font-bold text-alert-green">{ecologyAssessment.estimatedRecoveryTime}</p>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-center text-gray-500 py-8">暂无生态评估数据</p>
+        )}
+      </div>
 
       <div className="card">
         <h3 className="text-lg font-semibold text-ocean-700 mb-4">资源调配</h3>
@@ -317,6 +320,7 @@ const EventDetail: React.FC = () => {
                   cleanup: 'bg-alert-green',
                   resource: 'bg-purple-500',
                   ecology: 'bg-yellow-500',
+                  summary: 'bg-ocean-600',
                 };
                 const dotColor = categoryColors[item.category] || 'bg-gray-400';
                 const isClickable = !!item.linkPath;

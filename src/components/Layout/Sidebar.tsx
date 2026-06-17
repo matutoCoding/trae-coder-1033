@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  ClipboardList,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -19,6 +20,7 @@ const menuItems = [
     group: '总览',
     items: [
       { path: '/dashboard', label: '总览仪表板', icon: LayoutDashboard },
+      { path: '/dashboard/task-board', label: '现场任务看板', icon: ClipboardList },
     ],
   },
   {

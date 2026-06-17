@@ -3,71 +3,8 @@ import { Plus, Play, Pause, Trash2, MapPin, Clock, User, CheckCircle } from 'luc
 import { useStore } from '../../store/useStore';
 import StatCard from '../../components/Cards/StatCard';
 import { operationStatusLabels, operationStatusColors } from '../../types';
-import { formatDateTime, getProgressColor } from '../../utils/helpers';
-
-interface ShoreSegment {
-  id: string;
-  name: string;
-  length: number;
-  pollutionLevel: 'heavy' | 'medium' | 'light' | 'clean';
-  status: 'pending' | 'in_progress' | 'completed';
-  assignedTeam: string;
-  progress: number;
-  collectedWaste: number;
-}
-
-const shoreSegments: ShoreSegment[] = [
-  {
-    id: 'SS-001',
-    name: 'A段 - 旅游度假区岸线',
-    length: 2.5,
-    pollutionLevel: 'heavy',
-    status: 'pending',
-    assignedTeam: '岸线清理一队',
-    progress: 0,
-    collectedWaste: 0,
-  },
-  {
-    id: 'SS-002',
-    name: 'B段 - 渔业码头岸线',
-    length: 3.2,
-    pollutionLevel: 'medium',
-    status: 'in_progress',
-    assignedTeam: '岸线清理二队',
-    progress: 45,
-    collectedWaste: 5.2,
-  },
-  {
-    id: 'SS-003',
-    name: 'C段 - 自然保护区岸线',
-    length: 4.8,
-    pollutionLevel: 'light',
-    status: 'pending',
-    assignedTeam: '岸线清理三队',
-    progress: 0,
-    collectedWaste: 0,
-  },
-  {
-    id: 'SS-004',
-    name: 'D段 - 工业港岸线',
-    length: 1.8,
-    pollutionLevel: 'heavy',
-    status: 'in_progress',
-    assignedTeam: '岸线清理四队',
-    progress: 70,
-    collectedWaste: 8.5,
-  },
-  {
-    id: 'SS-005',
-    name: 'E段 - 居民区岸线',
-    length: 2.2,
-    pollutionLevel: 'medium',
-    status: 'completed',
-    assignedTeam: '岸线清理一队',
-    progress: 100,
-    collectedWaste: 3.6,
-  },
-];
+import type { ShoreSegment } from '../../types';
+import { getProgressColor } from '../../utils/helpers';
 
 const pollutionLevelLabels = {
   heavy: '严重',
@@ -84,22 +21,78 @@ const pollutionLevelColors = {
 };
 
 const ShorelineCleanup = () => {
-  const { currentEvent, getEventCleanupOperations } = useStore();
-  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  const currentEvent = useStore((state) => state.currentEvent);
+  const shoreSegments = useStore((state) => state.shoreSegments);
+  const getEventShoreSegments = useStore((state) => state.getEventShoreSegments);
+  const updateShoreSegmentProgress = useStore((state) => state.updateShoreSegmentProgress);
+  const updateShoreSegmentStatus = useStore((state) => state.updateShoreSegmentStatus);
 
-  const cleanupOps = currentEvent
-    ? getEventCleanupOperations(currentEvent.id).filter((o) => o.operationType === 'shoreline')
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  const [editingProgress, setEditingProgress] = useState<string | null>(null);
+  const [progressValue, setProgressValue] = useState<number>(0);
+  const [wasteValue, setWasteValue] = useState<number>(0);
+
+  const segments: ShoreSegment[] = currentEvent
+    ? getEventShoreSegments(currentEvent.id)
     : [];
 
-  const totalLength = shoreSegments.reduce((sum, s) => sum + s.length, 0);
-  const completedLength = shoreSegments.filter((s) => s.status === 'completed').reduce((sum, s) => sum + s.length, 0);
-  const inProgressCount = shoreSegments.filter((s) => s.status === 'in_progress').length;
-  const totalWaste = shoreSegments.reduce((sum, s) => sum + s.collectedWaste, 0);
+  const totalLength = segments.reduce((sum, s) => sum + s.length, 0);
+  const completedLength = segments.filter((s) => s.status === 'completed').reduce((sum, s) => sum + s.length, 0);
+  const inProgressCount = segments.filter((s) => s.status === 'in_progress').length;
+  const totalWaste = segments.reduce((sum, s) => sum + s.collectedWaste, 0);
+
+  const handleStart = (segmentId: string) => {
+    updateShoreSegmentStatus(segmentId, 'in_progress');
+  };
+
+  const handlePause = (segmentId: string) => {
+    updateShoreSegmentStatus(segmentId, 'pending');
+  };
+
+  const handleComplete = (segmentId: string) => {
+    updateShoreSegmentStatus(segmentId, 'completed');
+  };
+
+  const handleOpenProgressEdit = (segment: ShoreSegment) => {
+    setEditingProgress(segment.id);
+    setProgressValue(segment.progress);
+    setWasteValue(segment.collectedWaste);
+  };
+
+  const handleSaveProgress = (segmentId: string) => {
+    updateShoreSegmentProgress(segmentId, Math.min(100, Math.max(0, progressValue)), wasteValue);
+    setEditingProgress(null);
+  };
+
+  const handleCancelProgressEdit = () => {
+    setEditingProgress(null);
+  };
 
   if (!currentEvent) {
     return (
       <div className="card text-center py-12">
         <p className="text-slate-500">请先选择一个事件</p>
+      </div>
+    );
+  }
+
+  if (segments.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">岸线清理作业</h1>
+            <p className="text-slate-500 mt-1">管理受污染岸线的清理作业</p>
+          </div>
+          <button className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            新增清理任务
+          </button>
+        </div>
+        <div className="card text-center py-16">
+          <MapPin className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-500 text-lg">当前事件暂无岸线清理任务</p>
+        </div>
       </div>
     );
   }
@@ -151,7 +144,7 @@ const ShorelineCleanup = () => {
       <div className="card">
         <h3 className="text-lg font-semibold text-slate-800 mb-4">岸段污染分布</h3>
         <div className="h-16 flex rounded-lg overflow-hidden">
-          {shoreSegments.map((segment, index) => (
+          {segments.map((segment, index) => (
             <div
               key={segment.id}
               className={`h-full flex items-center justify-center text-xs font-medium text-white cursor-pointer transition-all hover:opacity-80 ${
@@ -172,7 +165,7 @@ const ShorelineCleanup = () => {
           ))}
         </div>
         <div className="flex justify-between mt-2 text-xs text-slate-500">
-          {shoreSegments.map((s) => (
+          {segments.map((s) => (
             <div key={s.id} className="flex flex-col items-center">
               <span
                 className={`w-3 h-3 rounded-full ${
@@ -206,7 +199,7 @@ const ShorelineCleanup = () => {
               </tr>
             </thead>
             <tbody>
-              {shoreSegments.map((segment) => (
+              {segments.map((segment) => (
                 <tr
                   key={segment.id}
                   className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${
@@ -239,19 +232,28 @@ const ShorelineCleanup = () => {
                       <span className="text-sm font-medium">{segment.progress}%</span>
                     </div>
                   </td>
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                     {segment.status === 'pending' && (
-                      <button className="text-sm text-ocean-600 hover:text-ocean-700 font-medium">
+                      <button
+                        className="text-sm text-ocean-600 hover:text-ocean-700 font-medium"
+                        onClick={() => handleStart(segment.id)}
+                      >
                         开始
                       </button>
                     )}
                     {segment.status === 'in_progress' && (
-                      <button className="text-sm text-alert-orange hover:text-orange-700 font-medium">
+                      <button
+                        className="text-sm text-alert-orange hover:text-orange-700 font-medium"
+                        onClick={() => handleOpenProgressEdit(segment)}
+                      >
                         更新
                       </button>
                     )}
                     {segment.status === 'completed' && (
-                      <button className="text-sm text-alert-green hover:text-emerald-700 font-medium">
+                      <button
+                        className="text-sm text-alert-green hover:text-emerald-700 font-medium"
+                        onClick={() => setSelectedSegment(segment.id)}
+                      >
                         查看
                       </button>
                     )}
@@ -263,14 +265,60 @@ const ShorelineCleanup = () => {
         </div>
       </div>
 
-      {selectedSegment && (
+      {editingProgress && (
         <div className="card">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">
-            岸段详情 - {shoreSegments.find((s) => s.id === selectedSegment)?.name}
+            更新进度 - {segments.find((s) => s.id === editingProgress)?.name}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">清理进度 (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={progressValue}
+                onChange={(e) => setProgressValue(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">已收集垃圾 (吨)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                value={wasteValue}
+                onChange={(e) => setWasteValue(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              className="btn-primary"
+              onClick={() => handleSaveProgress(editingProgress)}
+            >
+              保存
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handleCancelProgressEdit}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {selectedSegment && !editingProgress && (
+        <div className="card">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">
+            岸段详情 - {segments.find((s) => s.id === selectedSegment)?.name}
           </h3>
 
           {(() => {
-            const segment = shoreSegments.find((s) => s.id === selectedSegment);
+            const segment = segments.find((s) => s.id === selectedSegment);
             if (!segment) return null;
 
             return (
@@ -300,27 +348,45 @@ const ShorelineCleanup = () => {
                   <div className="p-4 bg-slate-50 rounded-lg">
                     <div className="flex items-center gap-2 text-slate-500 mb-2">
                       <Clock className="w-4 h-4" />
-                      <span className="text-sm">计划开始</span>
+                      <span className="text-sm">污染程度</span>
                     </div>
-                    <div className="text-lg font-bold text-slate-800">2026-06-17 08:00</div>
+                    <div className="text-lg font-bold text-slate-800">
+                      {pollutionLevelLabels[segment.pollutionLevel]}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 flex-wrap">
                   {segment.status === 'pending' && (
-                    <button className="btn-primary flex items-center gap-2">
+                    <button
+                      className="btn-primary flex items-center gap-2"
+                      onClick={() => handleStart(segment.id)}
+                    >
                       <Play className="w-4 h-4" />
                       开始清理
                     </button>
                   )}
                   {segment.status === 'in_progress' && (
                     <>
-                      <button className="btn-primary flex items-center gap-2">
+                      <button
+                        className="btn-primary flex items-center gap-2"
+                        onClick={() => handleOpenProgressEdit(segment)}
+                      >
                         更新进度
                       </button>
-                      <button className="btn-secondary flex items-center gap-2">
+                      <button
+                        className="btn-secondary flex items-center gap-2"
+                        onClick={() => handlePause(segment.id)}
+                      >
                         <Pause className="w-4 h-4" />
                         暂停作业
+                      </button>
+                      <button
+                        className="btn-secondary flex items-center gap-2 text-alert-green border-alert-green hover:bg-alert-green/5"
+                        onClick={() => handleComplete(segment.id)}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        标记完成
                       </button>
                     </>
                   )}
