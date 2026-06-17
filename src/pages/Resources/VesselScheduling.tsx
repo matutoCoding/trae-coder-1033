@@ -5,7 +5,7 @@ import { resourceStatusLabels, resourceStatusColors } from '../../types';
 import { formatDateTime } from '../../utils/helpers';
 
 const VesselScheduling: React.FC = () => {
-  const { currentEvent, getEventResourceAssignments } = useStore();
+  const { currentEvent, getEventResourceAssignments, updateResourceStatus, updateResourcePosition } = useStore();
   const [selectedVessel, setSelectedVessel] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,26 +171,46 @@ const VesselScheduling: React.FC = () => {
                             <h4 className="font-semibold text-ocean-700 mb-3">调度操作</h4>
                             <div className="flex gap-2">
                               {vessel.status === 'available' && (
-                                <button className="px-4 py-2 bg-ocean-700 text-white rounded-lg text-sm hover:bg-ocean-800 transition-colors">
+                                <button
+                                  onClick={() => updateResourceStatus(vessel.id, 'assigned', '待分配任务')}
+                                  className="px-4 py-2 bg-ocean-700 text-white rounded-lg text-sm hover:bg-ocean-800 transition-colors"
+                                >
                                   分配任务
                                 </button>
                               )}
                               {vessel.status === 'in_use' && (
                                 <>
-                                  <button className="px-4 py-2 bg-alert-yellow text-yellow-800 rounded-lg text-sm hover:bg-yellow-200 transition-colors">
+                                  <button
+                                    onClick={() => updateResourceStatus(vessel.id, 'assigned', vessel.currentTask)}
+                                    className="px-4 py-2 bg-alert-yellow text-yellow-800 rounded-lg text-sm hover:bg-yellow-200 transition-colors"
+                                  >
                                     暂停作业
                                   </button>
-                                  <button className="px-4 py-2 bg-alert-green text-green-800 rounded-lg text-sm hover:bg-green-200 transition-colors">
+                                  <button
+                                    onClick={() => updateResourceStatus(vessel.id, 'available', '')}
+                                    className="px-4 py-2 bg-alert-green text-green-800 rounded-lg text-sm hover:bg-green-200 transition-colors"
+                                  >
                                     完成作业
                                   </button>
                                 </>
                               )}
                               {vessel.status === 'assigned' && (
-                                <button className="px-4 py-2 bg-alert-orange text-white rounded-lg text-sm hover:bg-orange-600 transition-colors">
+                                <button
+                                  onClick={() => updateResourceStatus(vessel.id, 'in_use', vessel.currentTask || '清污作业')}
+                                  className="px-4 py-2 bg-alert-orange text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
+                                >
                                   开始作业
                                 </button>
                               )}
-                              <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                              <button
+                                onClick={() => {
+                                  const newLocation = prompt('请输入新位置');
+                                  if (newLocation !== null) {
+                                    updateResourcePosition(vessel.id, newLocation);
+                                  }
+                                }}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                              >
                                 调整位置
                               </button>
                             </div>

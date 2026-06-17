@@ -89,6 +89,7 @@ export interface ResourceAssignment {
   status: ResourceStatus;
   assignedTime: string;
   currentLocation: string;
+  currentTask?: string;
   contact: string;
 }
 

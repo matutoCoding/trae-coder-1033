@@ -1,17 +1,32 @@
 import { useState } from 'react';
-import { Plus, Play, Pause, Droplets, Wrench, Clock, User, MapPin, TrendingUp } from 'lucide-react';
+import { Plus, Play, Pause, Droplets, Wrench, Clock, User, MapPin, TrendingUp, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import StatCard from '../../components/Cards/StatCard';
-import { operationStatusLabels, operationStatusColors } from '../../types';
+import { operationStatusLabels, operationStatusColors, OperationStatus } from '../../types';
 import { formatDateTime, getProgressColor } from '../../utils/helpers';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const SkimmerOperation = () => {
-  const { currentEvent, getEventCleanupOperations, updateCleanupProgress } = useStore();
+  const {
+    currentEvent,
+    getEventCleanupOperations,
+    updateCleanupProgress,
+    addCleanupOperation,
+    updateCleanupStatus,
+  } = useStore();
   const [selectedOp, setSelectedOp] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    equipment: '标准撇油器',
+    equipmentCount: '2',
+    targetVolume: '',
+    location: '',
+    operator: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const cleanupOps = currentEvent
-    ? getEventCleanupOperations(currentEvent.id).filter((o) => o.operationType === 'skimmer')
+    ? getEventCleanupOperations(currentEvent.id, 'skimmer' as any)
     : [];
 
   const totalCollected = cleanupOps.reduce((sum, op) => sum + op.collectedVolume, 0);
@@ -36,13 +51,48 @@ const SkimmerOperation = () => {
     updateCleanupProgress(opId, newProgress, newVolume);
   };
 
-  const handleToggleStatus = (opId: string) => {
-    const op = cleanupOps.find((o) => o.id === opId);
-    if (!op) return;
+  const handleToggleStatus = (opId: string, newStatus: OperationStatus) => {
+    updateCleanupStatus(opId, newStatus);
+  };
 
-    if (op.status === 'in_progress') {
-      updateCleanupProgress(opId, op.progress, op.collectedVolume);
-    }
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.equipment.trim()) newErrors.equipment = '请输入设备型号';
+    if (!formData.equipmentCount || Number(formData.equipmentCount) <= 0) newErrors.equipmentCount = '请输入有效设备数量';
+    if (!formData.targetVolume || Number(formData.targetVolume) <= 0) newErrors.targetVolume = '请输入有效目标回收量';
+    if (!formData.location.trim()) newErrors.location = '请输入作业位置';
+    if (!formData.operator.trim()) newErrors.operator = '请输入作业船舶';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm() || !currentEvent) return;
+
+    addCleanupOperation({
+      eventId: currentEvent.id,
+      operationType: 'skimmer',
+      equipment: formData.equipment,
+      equipmentCount: Number(formData.equipmentCount),
+      collectedVolume: 0,
+      targetVolume: Number(formData.targetVolume),
+      status: 'idle',
+      startTime: new Date().toISOString(),
+      operator: formData.operator,
+      location: formData.location,
+      progress: 0,
+    });
+
+    setShowModal(false);
+    setFormData({
+      equipment: '标准撇油器',
+      equipmentCount: '2',
+      targetVolume: '',
+      location: '',
+      operator: '',
+    });
+    setErrors({});
   };
 
   if (!currentEvent) {
@@ -60,7 +110,10 @@ const SkimmerOperation = () => {
           <h1 className="text-2xl font-bold text-slate-800">撇油器收油作业</h1>
           <p className="text-slate-500 mt-1">管理机械收油作业，监控收油进度</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowModal(true)}
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus className="w-4 h-4" />
           新增收油任务
         </button>
@@ -225,7 +278,10 @@ const SkimmerOperation = () => {
 
                 <div className="flex items-center gap-4">
                   {op.status === 'idle' && (
-                    <button className="btn-primary flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleStatus(op.id, 'in_progress')}
+                      className="btn-primary flex items-center gap-2"
+                    >
                       <Play className="w-4 h-4" />
                       开始作业
                     </button>
@@ -239,14 +295,20 @@ const SkimmerOperation = () => {
                         <TrendingUp className="w-4 h-4" />
                         更新进度
                       </button>
-                      <button className="btn-secondary flex items-center gap-2">
+                      <button
+                        onClick={() => handleToggleStatus(op.id, 'paused')}
+                        className="btn-secondary flex items-center gap-2"
+                      >
                         <Pause className="w-4 h-4" />
                         暂停作业
                       </button>
                     </>
                   )}
                   {op.status === 'paused' && (
-                    <button className="btn-warning flex items-center gap-2">
+                    <button
+                      onClick={() => handleToggleStatus(op.id, 'in_progress')}
+                      className="btn-warning flex items-center gap-2"
+                    >
                       <Play className="w-4 h-4" />
                       恢复作业
                     </button>
@@ -308,6 +370,129 @@ const SkimmerOperation = () => {
           </table>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h3 className="text-xl font-bold text-slate-800">新增收油任务</h3>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setErrors({});
+                }}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  设备型号 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.equipment}
+                  onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
+                  placeholder="请输入设备型号"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition-all ${
+                    errors.equipment ? 'border-red-400' : 'border-slate-300'
+                  }`}
+                />
+                {errors.equipment && <p className="mt-1 text-sm text-red-500">{errors.equipment}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  设备数量（台） <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={formData.equipmentCount}
+                  onChange={(e) => setFormData({ ...formData, equipmentCount: e.target.value })}
+                  placeholder="请输入设备数量"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition-all ${
+                    errors.equipmentCount ? 'border-red-400' : 'border-slate-300'
+                  }`}
+                />
+                {errors.equipmentCount && <p className="mt-1 text-sm text-red-500">{errors.equipmentCount}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  目标回收量（吨） <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={formData.targetVolume}
+                  onChange={(e) => setFormData({ ...formData, targetVolume: e.target.value })}
+                  placeholder="请输入目标回收量"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition-all ${
+                    errors.targetVolume ? 'border-red-400' : 'border-slate-300'
+                  }`}
+                />
+                {errors.targetVolume && <p className="mt-1 text-sm text-red-500">{errors.targetVolume}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  作业位置 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="请输入作业位置"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition-all ${
+                    errors.location ? 'border-red-400' : 'border-slate-300'
+                  }`}
+                />
+                {errors.location && <p className="mt-1 text-sm text-red-500">{errors.location}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  作业船舶 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.operator}
+                  onChange={(e) => setFormData({ ...formData, operator: e.target.value })}
+                  placeholder="请输入作业船舶"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 outline-none transition-all ${
+                    errors.operator ? 'border-red-400' : 'border-slate-300'
+                  }`}
+                />
+                {errors.operator && <p className="mt-1 text-sm text-red-500">{errors.operator}</p>}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setErrors({});
+                  }}
+                  className="px-5 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 btn-primary"
+                >
+                  确认提交
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

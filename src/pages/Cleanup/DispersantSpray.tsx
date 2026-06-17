@@ -1,20 +1,29 @@
 import { useState } from 'react';
-import { Plus, Play, Pause, Droplets, Wrench, Clock, User, MapPin, AlertTriangle } from 'lucide-react';
+import { Plus, Play, Pause, Droplets, Wrench, Clock, User, MapPin, AlertTriangle, Save, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import StatCard from '../../components/Cards/StatCard';
-import { operationStatusLabels, operationStatusColors } from '../../types';
+import { operationStatusLabels, operationStatusColors, OperationStatus } from '../../types';
 import { formatDateTime, getProgressColor } from '../../utils/helpers';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-export const DispersantSpray = () => {
-  const { currentEvent, getEventCleanupOperations } = useStore();
+const DispersantSpray = () => {
+  const { currentEvent, getEventCleanupOperations, addCleanupOperation, updateCleanupStatus } = useStore();
   const [selectedOp, setSelectedOp] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    equipment: '标准喷洒装置',
+    equipmentCount: 1,
+    targetVolume: 5,
+    location: '事发海域',
+    operator: '海巡01号',
+  });
 
   const cleanupOps = currentEvent
-    ? getEventCleanupOperations(currentEvent.id).filter((o) => o.operationType === 'dispersant')
+    ? getEventCleanupOperations(currentEvent.id, 'dispersant')
     : [];
 
-  const totalSprayed = cleanupOps.reduce((sum, op) => sum + op.progress, 0);
+  const totalSprayed = cleanupOps.reduce((sum, op) => sum + op.collectedVolume, 0);
+  const totalTarget = cleanupOps.reduce((sum, op) => sum + op.targetVolume, 0);
   const inProgressCount = cleanupOps.filter((o) => o.status === 'in_progress').length;
   const equipmentCount = cleanupOps.reduce((sum, op) => sum + op.equipmentCount, 0);
 
@@ -26,6 +35,44 @@ export const DispersantSpray = () => {
     { name: '06-19', 用量: 10 },
     { name: '06-20', 用量: 7 },
   ];
+
+  const handleSave = () => {
+    if (
+      !formData.equipment.trim() ||
+      !formData.equipmentCount ||
+      !formData.targetVolume ||
+      !formData.location.trim() ||
+      !formData.operator.trim()
+    ) {
+      alert('请填写所有必填字段');
+      return;
+    }
+
+    if (!currentEvent) return;
+
+    addCleanupOperation({
+      eventId: currentEvent.id,
+      operationType: 'dispersant',
+      equipment: formData.equipment,
+      equipmentCount: formData.equipmentCount,
+      collectedVolume: 0,
+      targetVolume: formData.targetVolume,
+      location: formData.location,
+      operator: formData.operator,
+      status: 'idle' as OperationStatus,
+      startTime: new Date().toLocaleString('zh-CN'),
+      progress: 0,
+    });
+
+    setShowModal(false);
+    setFormData({
+      equipment: '标准喷洒装置',
+      equipmentCount: 1,
+      targetVolume: 5,
+      location: '事发海域',
+      operator: '海巡01号',
+    });
+  };
 
   if (!currentEvent) {
     return (
@@ -42,7 +89,10 @@ export const DispersantSpray = () => {
           <h1 className="text-2xl font-bold text-slate-800">消油剂喷洒作业</h1>
           <p className="text-slate-500 mt-1">管理消油剂喷洒作业，监控使用情况</p>
         </div>
-        <button className="btn-primary flex items-center gap-2">
+        <button
+          onClick={() => setShowModal(true)}
+          className="btn-primary flex items-center gap-2"
+        >
           <Plus className="w-4 h-4" />
           新增喷洒任务
         </button>
@@ -58,7 +108,7 @@ export const DispersantSpray = () => {
         />
         <StatCard
           title="已用消油剂"
-          value="20"
+          value={totalSprayed.toFixed(1)}
           unit="吨"
           icon={Wrench}
           color="purple"
@@ -205,15 +255,30 @@ export const DispersantSpray = () => {
 
                 <div className="flex items-center gap-4">
                   {op.status === 'idle' && (
-                    <button className="btn-primary flex items-center gap-2">
+                    <button
+                      onClick={() => updateCleanupStatus(op.id, 'in_progress')}
+                      className="btn-primary flex items-center gap-2"
+                    >
                       <Play className="w-4 h-4" />
                       开始喷洒
                     </button>
                   )}
                   {op.status === 'in_progress' && (
-                    <button className="btn-secondary flex items-center gap-2">
+                    <button
+                      onClick={() => updateCleanupStatus(op.id, 'paused')}
+                      className="btn-secondary flex items-center gap-2"
+                    >
                       <Pause className="w-4 h-4" />
                       暂停作业
+                    </button>
+                  )}
+                  {op.status === 'paused' && (
+                    <button
+                      onClick={() => updateCleanupStatus(op.id, 'in_progress')}
+                      className="btn-warning flex items-center gap-2"
+                    >
+                      <Play className="w-4 h-4" />
+                      恢复喷洒
                     </button>
                   )}
                 </div>
@@ -233,16 +298,118 @@ export const DispersantSpray = () => {
           </div>
           <div className="p-6 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-xl border border-amber-200">
             <div className="text-sm text-amber-600 mb-1">已使用</div>
-            <div className="text-3xl font-bold text-slate-800">20 吨</div>
+            <div className="text-3xl font-bold text-slate-800">{totalSprayed} 吨</div>
             <div className="text-sm text-slate-500 mt-1">本次事件</div>
           </div>
           <div className="p-6 bg-gradient-to-br from-blue-50 to-ocean-50 rounded-xl border border-blue-200">
             <div className="text-sm text-ocean-600 mb-1">预计还需</div>
-            <div className="text-3xl font-bold text-slate-800">15 吨</div>
+            <div className="text-3xl font-bold text-slate-800">{totalTarget - totalSprayed > 0 ? (totalTarget - totalSprayed).toFixed(1) : 0} 吨</div>
             <div className="text-sm text-slate-500 mt-1">后续作业</div>
           </div>
         </div>
       </div>
+
+      {showModal && (
+        <div className="z-50 fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="card w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-slate-800">新增喷洒任务</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  喷洒设备 <span className="text-alert-red">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.equipment}
+                  onChange={(e) => setFormData({ ...formData, equipment: e.target.value })}
+                  className="form-input w-full"
+                  placeholder="请输入喷洒设备名称"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  设备数量 <span className="text-alert-red">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.equipmentCount}
+                  onChange={(e) => setFormData({ ...formData, equipmentCount: parseInt(e.target.value) || 0 })}
+                  className="form-input w-full"
+                  placeholder="请输入设备数量"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  目标用量（吨） <span className="text-alert-red">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={formData.targetVolume}
+                  onChange={(e) => setFormData({ ...formData, targetVolume: parseFloat(e.target.value) || 0 })}
+                  className="form-input w-full"
+                  placeholder="请输入目标用量"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  作业位置 <span className="text-alert-red">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  className="form-input w-full"
+                  placeholder="请输入作业位置"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  作业船舶 <span className="text-alert-red">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.operator}
+                  onChange={(e) => setFormData({ ...formData, operator: e.target.value })}
+                  className="form-input w-full"
+                  placeholder="请输入作业船舶名称"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => setShowModal(false)}
+                className="btn-secondary"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSave}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Clock, Maximize2 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { OilSpillMap } from '../../components/Map/OilSpillMap';
@@ -11,6 +11,7 @@ const OilSpreadMonitoring = () => {
   const { currentEvent, getEventOilSpreadData, getEventContainmentOperations } = useStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
+  const timerRef = useRef<number | null>(null);
 
   const spreadData = currentEvent ? getEventOilSpreadData(currentEvent.id) : [];
   const containmentOps = currentEvent ? getEventContainmentOperations(currentEvent.id) : [];
@@ -23,6 +24,26 @@ const OilSpreadMonitoring = () => {
     area: d.spreadArea,
     speed: d.diffusionSpeed,
   }));
+
+  useEffect(() => {
+    if (isPlaying && spreadData.length > 0) {
+      timerRef.current = window.setInterval(() => {
+        setCurrentTimeIndex((prev) => {
+          if (prev >= spreadData.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 1500);
+    }
+    return () => {
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isPlaying, spreadData.length]);
 
   const handlePlay = () => {
     setIsPlaying(true);

@@ -18,7 +18,7 @@ const menuItems = [
   {
     group: '总览',
     items: [
-      { path: '/', label: '总览仪表板', icon: LayoutDashboard },
+      { path: '/dashboard', label: '总览仪表板', icon: LayoutDashboard },
     ],
   },
   {
@@ -38,7 +38,7 @@ const menuItems = [
   {
     group: '围控布防',
     items: [
-      { path: '/containment/boom-deployment', label: '围油栏布放', icon: Shield },
+      { path: '/containment/boom', label: '围油栏布放', icon: Shield },
     ],
   },
   {
