@@ -1,12 +1,31 @@
 import React from 'react';
-import { Clock, CheckCircle, AlertCircle, FileText, User, Calendar } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, FileText, User, Calendar, AlertTriangle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { formatDateTime } from '../../utils/helpers';
+import { formatDateTime, getTimeDiff } from '../../utils/helpers';
 
 const DisposalProgress: React.FC = () => {
-  const { currentEvent, getEventDisposalProgress } = useStore();
+  const {
+    currentEvent,
+    computeDynamicProgress,
+    containmentOperations,
+    cleanupOperations,
+    resourceAssignments,
+    oilSpreadData,
+    ecologyAssessment,
+  } = useStore();
 
-  const progressData = currentEvent ? getEventDisposalProgress(currentEvent.id) : [];
+  const progressData = React.useMemo(() => {
+    if (!currentEvent) return [];
+    return computeDynamicProgress(currentEvent.id);
+  }, [
+    currentEvent?.id,
+    computeDynamicProgress,
+    containmentOperations,
+    cleanupOperations,
+    resourceAssignments,
+    oilSpreadData,
+    ecologyAssessment,
+  ]);
 
   const getStageColor = (completionRate: number) => {
     if (completionRate === 100) return 'bg-alert-green';
@@ -26,6 +45,16 @@ const DisposalProgress: React.FC = () => {
     ? Math.round(progressData.reduce((sum, p) => sum + p.completionRate, 0) / progressData.length)
     : 0;
 
+  if (!currentEvent) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+        <AlertTriangle size={64} className="text-gray-300 mb-4" />
+        <h3 className="text-xl font-semibold text-gray-600 mb-2">暂无当前事件</h3>
+        <p className="text-gray-400">请先选择一个事件以查看处置进度</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -39,42 +68,40 @@ const DisposalProgress: React.FC = () => {
         </button>
       </div>
 
-      {currentEvent && (
-        <div className="card bg-gradient-to-r from-ocean-700 to-ocean-600 text-white">
-          <div className="grid grid-cols-3 gap-6">
-            <div>
-              <p className="text-ocean-100 text-sm">当前事件</p>
-              <h3 className="text-xl font-bold">{currentEvent.eventName}</h3>
-              <p className="text-ocean-100 mt-1">{currentEvent.location}</p>
-            </div>
-            <div>
-              <p className="text-ocean-100 text-sm">总体进度</p>
-              <div className="flex items-end gap-3">
-                <p className="text-4xl font-bold">{overallProgress}%</p>
-                <div className="flex-1 pb-2">
-                  <div className="h-3 bg-ocean-500/30 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-white rounded-full transition-all duration-500"
-                      style={{ width: `${overallProgress}%` }}
-                    />
-                  </div>
+      <div className="card bg-gradient-to-r from-ocean-700 to-ocean-600 text-white">
+        <div className="grid grid-cols-3 gap-6">
+          <div>
+            <p className="text-ocean-100 text-sm">当前事件</p>
+            <h3 className="text-xl font-bold">{currentEvent.eventName}</h3>
+            <p className="text-ocean-100 mt-1">{currentEvent.location}</p>
+          </div>
+          <div>
+            <p className="text-ocean-100 text-sm">总体进度</p>
+            <div className="flex items-end gap-3">
+              <p className="text-4xl font-bold">{overallProgress}%</p>
+              <div className="flex-1 pb-2">
+                <div className="h-3 bg-ocean-500/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white rounded-full transition-all duration-500"
+                    style={{ width: `${overallProgress}%` }}
+                  />
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="flex items-center justify-end gap-2 text-ocean-100 text-sm mb-1">
-                <Calendar size={16} />
-                开始时间
-              </div>
-              <p className="text-lg font-bold">{formatDateTime(currentEvent.occurrenceTime)}</p>
-              <div className="flex items-center justify-end gap-2 text-ocean-100 text-sm mt-2">
-                <User size={16} />
-                <span>{currentEvent.reporter}</span>
-              </div>
+          </div>
+          <div className="text-right">
+            <div className="flex items-center justify-end gap-2 text-ocean-100 text-sm mb-1">
+              <Calendar size={16} />
+              开始时间
+            </div>
+            <p className="text-lg font-bold">{formatDateTime(currentEvent.occurrenceTime)}</p>
+            <div className="flex items-center justify-end gap-2 text-ocean-100 text-sm mt-2">
+              <User size={16} />
+              <span>{currentEvent.reporter}</span>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       <div className="card">
         <h3 className="text-lg font-semibold text-ocean-700 mb-6">处置阶段进度</h3>
@@ -219,8 +246,10 @@ const DisposalProgress: React.FC = () => {
             </div>
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-500">处置持续时间</p>
-              <p className="text-3xl font-bold text-gray-700 mt-1">2天</p>
-              <p className="text-xs text-gray-400">预计还需 5-7 天</p>
+              <p className="text-3xl font-bold text-gray-700 mt-1">
+                {getTimeDiff(currentEvent.occurrenceTime)}
+              </p>
+              <p className="text-xs text-gray-400">自事件发生以来</p>
             </div>
           </div>
         </div>

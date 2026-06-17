@@ -7,7 +7,7 @@ import { formatDateTime, getProgressColor } from '../../utils/helpers';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const DispersantSpray = () => {
-  const { currentEvent, getEventCleanupOperations, addCleanupOperation, updateCleanupStatus } = useStore();
+  const { currentEvent, cleanupOperations, getEventCleanupOperations, addCleanupOperation, updateCleanupStatus } = useStore();
   const [selectedOp, setSelectedOp] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({

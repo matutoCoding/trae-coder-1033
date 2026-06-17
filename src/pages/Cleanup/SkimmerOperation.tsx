@@ -9,10 +9,11 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 const SkimmerOperation = () => {
   const {
     currentEvent,
+    cleanupOperations,
     getEventCleanupOperations,
-    updateCleanupProgress,
     addCleanupOperation,
     updateCleanupStatus,
+    updateCleanupProgress,
   } = useStore();
   const [selectedOp, setSelectedOp] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);

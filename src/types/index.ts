@@ -8,6 +8,57 @@ export type ResourceType = 'vessel' | 'equipment' | 'personnel' | 'material';
 
 export type ResourceStatus = 'available' | 'assigned' | 'in_use' | 'returned';
 
+export type TimelineCategory = 'event' | 'containment' | 'cleanup' | 'resource' | 'ecology' | 'monitoring';
+
+export type CleanupType = 'skimmer' | 'dispersant' | 'shoreline';
+
+export interface TimelineItem {
+  id: string;
+  time: string;
+  title: string;
+  description: string;
+  category: TimelineCategory;
+  linkPath?: string;
+  status?: 'critical' | 'warning' | 'normal' | 'success';
+}
+
+export interface EventSummaryReport {
+  id: string;
+  eventId: string;
+  generatedAt: string;
+  basicInfo: {
+    eventName: string;
+    location: string;
+    oilType: string;
+    estimatedVolume: number;
+    occurrenceTime: string;
+    reporter: string;
+  };
+  disposalProcess: string;
+  resourceInvestment: {
+    vessels: number;
+    equipment: number;
+    personnel: number;
+    materials: number;
+    containmentLength: number;
+  };
+  recoveryStats: {
+    totalCollected: number;
+    recoveryRate: number;
+    byType: { skimmer: number; dispersant: number; shoreline: number };
+  };
+  ecologyImpact: {
+    damageLevel: number;
+    affectedArea: number;
+    sensitiveResources: string[];
+    affectedSpecies: string[];
+    estimatedRecoveryTime: string;
+  };
+  lessons: string;
+  overallProgress: number;
+  duration: string;
+}
+
 export interface OilSpillEvent {
   id: string;
   eventName: string;
@@ -90,6 +141,8 @@ export interface ResourceAssignment {
   assignedTime: string;
   currentLocation: string;
   currentTask?: string;
+  operationType?: CleanupType;
+  targetLocation?: string;
   contact: string;
 }
 

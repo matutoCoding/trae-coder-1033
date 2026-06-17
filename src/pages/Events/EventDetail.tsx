@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Clock, User, FileText, AlertTriangle, Activity, Ship, Droplets, TrendingUp } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { eventStatusLabels, eventStatusColors, oilTypeLabels } from '../../types';
+import type { TimelineCategory } from '../../types';
 import { formatDateTime, getTimeDiff } from '../../utils/helpers';
 import StatCard from '../../components/Cards/StatCard';
 
 const EventDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getEventById, getEventOilSpreadData, getEventContainmentOperations, getEventCleanupOperations, getEventResourceAssignments, getEventDisposalProgress, ecologyAssessment, setCurrentEvent } = useStore();
+  const { getEventById, getEventOilSpreadData, getEventContainmentOperations, getEventCleanupOperations, getEventResourceAssignments, getEventDisposalProgress, ecologyAssessment, setCurrentEvent, generateTimeline } = useStore();
 
   const event = id ? getEventById(id) : undefined;
 
@@ -30,6 +31,7 @@ const EventDetail: React.FC = () => {
   const cleanupOps = getEventCleanupOperations(event.id);
   const resources = getEventResourceAssignments(event.id);
   const disposalProgress = getEventDisposalProgress(event.id);
+  const timeline = generateTimeline(event.id);
 
   const latestSpread = oilSpreadData[oilSpreadData.length - 1];
   const totalCollected = cleanupOps.reduce((sum, op) => sum + op.collectedVolume, 0);
@@ -294,6 +296,51 @@ const EventDetail: React.FC = () => {
             );
           })}
         </div>
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-ocean-700">处置时间线</h3>
+          <span className="text-sm text-gray-500">共 {timeline.length} 条记录</span>
+        </div>
+        {timeline.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">暂无处置记录</p>
+        ) : (
+          <div className="relative">
+            <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-gray-200" />
+            <div className="space-y-4">
+              {timeline.map((item) => {
+                const categoryColors: Record<TimelineCategory, string> = {
+                  event: 'bg-alert-red',
+                  monitoring: 'bg-alert-blue',
+                  containment: 'bg-alert-orange',
+                  cleanup: 'bg-alert-green',
+                  resource: 'bg-purple-500',
+                  ecology: 'bg-yellow-500',
+                };
+                const dotColor = categoryColors[item.category] || 'bg-gray-400';
+                const isClickable = !!item.linkPath;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`relative pl-10 pr-4 py-3 rounded-lg transition-colors ${
+                      isClickable ? 'hover:bg-gray-50 cursor-pointer' : ''
+                    }`}
+                    onClick={() => isClickable && item.linkPath && navigate(item.linkPath)}
+                  >
+                    <div className={`absolute left-0 top-4 w-6 h-6 rounded-full ${dotColor} border-4 border-white shadow`} />
+                    <div className="flex flex-col">
+                      <span className="text-xs text-gray-400 mb-1">{item.time}</span>
+                      <h4 className="font-semibold text-gray-800">{item.title}</h4>
+                      <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

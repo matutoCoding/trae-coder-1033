@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Ship, MapPin, Phone, Clock, Search, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Ship, MapPin, Phone, Clock, Search, ChevronDown, ChevronUp, AlertTriangle, X } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { resourceStatusLabels, resourceStatusColors } from '../../types';
+import { resourceStatusLabels, resourceStatusColors, CleanupType } from '../../types';
 import { formatDateTime } from '../../utils/helpers';
 
 const VesselScheduling: React.FC = () => {
-  const { currentEvent, getEventResourceAssignments, updateResourceStatus, updateResourcePosition } = useStore();
+  const { currentEvent, events, resourceAssignments, getEventResourceAssignments, updateResourceStatus, updateResourcePosition, assignResource } = useStore();
   const [selectedVessel, setSelectedVessel] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    eventId: '',
+    operationType: 'skimmer' as CleanupType,
+    targetLocation: '',
+    taskDesc: '清污作业任务',
+  });
 
   const resources = currentEvent ? getEventResourceAssignments(currentEvent.id) : [];
   const vessels = resources.filter(r => r.resourceType === 'vessel');
@@ -25,6 +32,45 @@ const VesselScheduling: React.FC = () => {
     in_use: vessels.filter(v => v.status === 'in_use').length,
     available: vessels.filter(v => v.status === 'available').length,
     assigned: vessels.filter(v => v.status === 'assigned').length,
+  };
+
+  const operationTypeLabels: Record<CleanupType, string> = {
+    skimmer: '撇油器收油',
+    dispersant: '消油剂喷洒',
+    shoreline: '岸线清理',
+  };
+
+  const handleOpenModal = () => {
+    setFormData({
+      eventId: currentEvent?.id || '',
+      operationType: 'skimmer',
+      targetLocation: '',
+      taskDesc: '清污作业任务',
+    });
+    setShowModal(true);
+  };
+
+  const handleConfirmAssign = () => {
+    if (!formData.eventId || !formData.targetLocation) {
+      alert('请选择事件并填写目标位置');
+      return;
+    }
+    if (selectedVessel) {
+      assignResource(
+        selectedVessel,
+        formData.eventId,
+        formData.taskDesc,
+        formData.operationType,
+        formData.targetLocation
+      );
+    }
+    setShowModal(false);
+    setFormData({
+      eventId: currentEvent?.id || '',
+      operationType: 'skimmer',
+      targetLocation: '',
+      taskDesc: '清污作业任务',
+    });
   };
 
   return (
@@ -165,14 +211,36 @@ const VesselScheduling: React.FC = () => {
                                 <span className="text-gray-500">分配时间</span>
                                 <span className="text-gray-800">{formatDateTime(vessel.assignedTime)}</span>
                               </div>
+                              {vessel.operationType && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">作业类型</span>
+                                  <span className="text-gray-800">{operationTypeLabels[vessel.operationType]}</span>
+                                </div>
+                              )}
+                              {vessel.targetLocation && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">目标位置</span>
+                                  <span className="text-gray-800">{vessel.targetLocation}</span>
+                                </div>
+                              )}
+                              {vessel.currentTask && (
+                                <div className="flex justify-between">
+                                  <span className="text-gray-500">任务描述</span>
+                                  <span className="text-gray-800">{vessel.currentTask}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div>
                             <h4 className="font-semibold text-ocean-700 mb-3">调度操作</h4>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                               {vessel.status === 'available' && (
                                 <button
-                                  onClick={() => updateResourceStatus(vessel.id, 'assigned', '待分配任务')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedVessel(vessel.id);
+                                    handleOpenModal();
+                                  }}
                                   className="px-4 py-2 bg-ocean-700 text-white rounded-lg text-sm hover:bg-ocean-800 transition-colors"
                                 >
                                   分配任务
@@ -181,13 +249,19 @@ const VesselScheduling: React.FC = () => {
                               {vessel.status === 'in_use' && (
                                 <>
                                   <button
-                                    onClick={() => updateResourceStatus(vessel.id, 'assigned', vessel.currentTask)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateResourceStatus(vessel.id, 'assigned', vessel.currentTask);
+                                    }}
                                     className="px-4 py-2 bg-alert-yellow text-yellow-800 rounded-lg text-sm hover:bg-yellow-200 transition-colors"
                                   >
                                     暂停作业
                                   </button>
                                   <button
-                                    onClick={() => updateResourceStatus(vessel.id, 'available', '')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateResourceStatus(vessel.id, 'available', '');
+                                    }}
                                     className="px-4 py-2 bg-alert-green text-green-800 rounded-lg text-sm hover:bg-green-200 transition-colors"
                                   >
                                     完成作业
@@ -196,14 +270,18 @@ const VesselScheduling: React.FC = () => {
                               )}
                               {vessel.status === 'assigned' && (
                                 <button
-                                  onClick={() => updateResourceStatus(vessel.id, 'in_use', vessel.currentTask || '清污作业')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateResourceStatus(vessel.id, 'in_use', vessel.currentTask || '清污作业');
+                                  }}
                                   className="px-4 py-2 bg-alert-orange text-white rounded-lg text-sm hover:bg-orange-600 transition-colors"
                                 >
                                   开始作业
                                 </button>
                               )}
                               <button
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   const newLocation = prompt('请输入新位置');
                                   if (newLocation !== null) {
                                     updateResourcePosition(vessel.id, newLocation);
@@ -265,6 +343,85 @@ const VesselScheduling: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-ocean-700">分配任务</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">选择事件</label>
+                <select
+                  value={formData.eventId}
+                  onChange={(e) => setFormData({ ...formData, eventId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-700 focus:border-transparent"
+                >
+                  <option value="">请选择事件</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.eventName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">作业类型</label>
+                <select
+                  value={formData.operationType}
+                  onChange={(e) => setFormData({ ...formData, operationType: e.target.value as CleanupType })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-700 focus:border-transparent"
+                >
+                  <option value="skimmer">撇油器收油</option>
+                  <option value="dispersant">消油剂喷洒</option>
+                  <option value="shoreline">岸线清理</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">目标位置</label>
+                <input
+                  type="text"
+                  value={formData.targetLocation}
+                  onChange={(e) => setFormData({ ...formData, targetLocation: e.target.value })}
+                  placeholder="请输入目标位置"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-700 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">任务说明</label>
+                <input
+                  type="text"
+                  value={formData.taskDesc}
+                  onChange={(e) => setFormData({ ...formData, taskDesc: e.target.value })}
+                  placeholder="请输入任务说明"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-ocean-700 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmAssign}
+                className="px-4 py-2 bg-ocean-700 text-white rounded-lg text-sm hover:bg-ocean-800 transition-colors"
+              >
+                确认分配
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

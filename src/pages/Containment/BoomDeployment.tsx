@@ -17,6 +17,8 @@ const boomTypeOptions = [
 const BoomDeployment = () => {
   const {
     currentEvent,
+    containmentOperations,
+    oilSpreadData,
     getEventOilSpreadData,
     getEventContainmentOperations,
     updateContainmentStatus,

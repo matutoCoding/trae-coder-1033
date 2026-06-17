@@ -8,7 +8,7 @@ import { formatDateTime, formatNumber } from '../../utils/helpers';
 import { Droplets, Waves, Navigation, Gauge } from 'lucide-react';
 
 const OilSpreadMonitoring = () => {
-  const { currentEvent, getEventOilSpreadData, getEventContainmentOperations } = useStore();
+  const { currentEvent, oilSpreadData, containmentOperations, getEventOilSpreadData, getEventContainmentOperations } = useStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
